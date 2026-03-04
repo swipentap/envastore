@@ -1,0 +1,49 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: umbrella
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://swipentap.github.io/charts
+    chart: enva-umbrella
+    targetRevision: "1.0.0-228"
+    helm:
+      valuesObject:
+        freeipaChartRevision: "1.0.8-228"
+        langflowChartRevision: "0.1.0-228"
+        vaultSecretsChartRevision: "0.1.0-228"
+        global:
+          env: prod
+          domain: nasu.net
+          tlsSecret: tls-nasu-net-wildcard
+        mailu:
+          nodeHosts: |
+            10.11.1.11 k3s-control
+            10.11.1.12 k3s-worker-1
+            10.11.1.13 k3s-worker-2
+            10.11.1.14 k3s-worker-3
+        postgresql:
+          pgadminHost: pgadmin.nasu.net
+        sins:
+          haproxyIp: "10.11.1.17"
+        rancher:
+          hostname: rancher.nasu.net
+        githubRunner:
+          group: k3s-nasu
+          labels:
+            - k3s
+            - k3s-nasu
+        freeipa:
+          hostname: ipa.nasu.net
+          realm: NASU.NET
+          domain: nasu.net
+          credentialsSecret: freeipa-credentials
+          ingressTlsSecret: tls-nasu-net-wildcard
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      selfHeal: true

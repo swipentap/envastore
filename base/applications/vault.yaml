@@ -1,0 +1,79 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vault
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://helm.releases.hashicorp.com
+    chart: vault
+    targetRevision: "0.29.1"
+    helm:
+      releaseName: vault
+      valuesObject:
+        server:
+          standalone:
+            enabled: true
+            config: |
+              ui = true
+              listener "tcp" {
+                tls_disable = 1
+                address = "[::]:8200"
+                cluster_address = "[::]:8201"
+              }
+              storage "file" {
+                path = "/vault/data"
+              }
+          dataStorage:
+            enabled: true
+            size: 10Gi
+            storageClass: local-path
+          extraContainers:
+            - name: vault-unsealer
+              image: hashicorp/vault:1.18.3
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  while true; do
+                    sleep 10
+                    STATUS=$(vault status -format=json 2>/dev/null | grep -o '"sealed":[^,}]*' | grep -o 'true\|false')
+                    if [ "$STATUS" = "true" ]; then
+                      echo "Vault is sealed, unsealing..."
+                      for i in 1 2 3; do
+                        KEY=$(cat /vault/unseal-keys/unseal_key_$i 2>/dev/null)
+                        if [ -n "$KEY" ]; then
+                          vault operator unseal "$KEY"
+                        fi
+                      done
+                    fi
+                  done
+              env:
+                - name: VAULT_ADDR
+                  value: "http://127.0.0.1:8200"
+              volumeMounts:
+                - name: unseal-keys
+                  mountPath: /vault/unseal-keys
+                  readOnly: true
+          volumes:
+            - name: unseal-keys
+              secret:
+                secretName: vault-unseal-keys
+                optional: true
+        ui:
+          enabled: true
+          serviceType: ClusterIP
+        injector:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vault
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
