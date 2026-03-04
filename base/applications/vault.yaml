@@ -66,6 +66,19 @@ spec:
         ui:
           enabled: true
           serviceType: ClusterIP
+          ingress:
+            enabled: true
+            ingressClassName: traefik
+            annotations:
+              traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+            hosts:
+              - host: vault.nasu.net
+                paths:
+                  - /
+            tls:
+              - secretName: tls-nasu-net-wildcard
+                hosts:
+                  - vault.nasu.net
         injector:
           enabled: false
   destination:
